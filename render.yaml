@@ -1,0 +1,27 @@
+# Render deployment config for the HuskyPath backend.
+# Drop this file at the repo root and point a new Render Web Service at the repo.
+# Render will pick it up automatically.
+#
+# After deploy, set the same VITE_API_BASE in Vercel's project settings to
+# point the frontend at the deployed URL.
+
+services:
+  - type: web
+    name: huskypath-api
+    env: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node index.js
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CORS_ORIGIN
+        # Comma-separated list of allowed origins. Set this to your
+        # Vercel URL once it's known (e.g. https://husky-path.vercel.app).
+        value: https://husky-path.vercel.app
+      - key: GEMINI_API_KEY
+        # Set this in Render's dashboard, not committed.
+        sync: false

@@ -1,44 +1,53 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import ConstraintInput from './components/ConstraintInput'
 import ScheduleResults from './components/ScheduleResults'
+import AboutModal from './components/AboutModal'
+import { planSchedules } from './api'
 import './App.css'
 
 function App() {
   const [phase, setPhase] = useState('input') // 'input' | 'loading' | 'results'
   const [schedules, setSchedules] = useState([])
   const [query, setQuery] = useState('')
-  const [error, setError] = useState(null)
+  const [errorMsg, setErrorMsg] = useState(null)
+  const [aboutOpen, setAboutOpen] = useState(false)
+  const [theme, setTheme] = useState(() => {
+    if (typeof window === 'undefined') return 'dark'
+    return window.localStorage.getItem('huskypath-theme') === 'light' ? 'light' : 'dark'
+  })
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    window.localStorage.setItem('huskypath-theme', theme)
+  }, [theme])
 
   const handleSubmit = async (inputText) => {
     setQuery(inputText)
+    setErrorMsg(null)
     setPhase('loading')
-    setError(null)
 
     try {
-      // Hit the NLP parser endpoint — returns 501 until Kieran's parser is live
-      const res = await fetch('http://localhost:3001/api/parse', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: inputText }),
-      })
-
-      if (res.status === 501) {
-        // Endpoint not implemented yet — use mock data
-        await new Promise((r) => setTimeout(r, 1200)) // simulate latency
+      // Hit the unified /api/plan endpoint — returns ranked schedules
+      // already shaped for the UI components.
+      const ranked = await planSchedules(inputText, { topN: 3 })
+      if (ranked.length === 0) {
         setSchedules(MOCK_SCHEDULES)
-        setPhase('results')
-        return
+        setErrorMsg('No conflict-free schedules found — showing example data instead.')
+      } else {
+        setSchedules(ranked)
       }
-
-      if (!res.ok) throw new Error(`Server error: ${res.status}`)
-      const data = await res.json()
-      setSchedules(data.schedules ?? MOCK_SCHEDULES)
       setPhase('results')
     } catch (err) {
-      // Network error (server not running) — fall back to mock
-      await new Promise((r) => setTimeout(r, 800))
+      // Backend unreachable — fall back to mock so the demo never dies.
+      await new Promise((r) => setTimeout(r, 600))
       setSchedules(MOCK_SCHEDULES)
+      setErrorMsg(
+        'Backend unreachable — showing example data. ' +
+          'Live mode kicks in once the API is online.'
+      )
       setPhase('results')
+      // eslint-disable-next-line no-console
+      console.warn('planSchedules failed:', err.message)
     }
   }
 
@@ -46,7 +55,7 @@ function App() {
     setPhase('input')
     setSchedules([])
     setQuery('')
-    setError(null)
+    setErrorMsg(null)
   }
 
   return (
@@ -58,6 +67,28 @@ function App() {
             <span className="brand-name">HuskyPath</span>
           </div>
           <p className="brand-tagline">AI-powered schedule planner for UW students</p>
+          <div className="header-actions">
+            <button
+              type="button"
+              className="theme-toggle"
+              onClick={() => setAboutOpen(true)}
+              aria-label="Open About dialog"
+            >
+              <span className="theme-toggle-icon" aria-hidden="true">ⓘ</span>
+              <span>About</span>
+            </button>
+            <button
+              type="button"
+              className="theme-toggle"
+              onClick={() => setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'))}
+              aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            >
+              <span className="theme-toggle-icon" aria-hidden="true">
+                {theme === 'dark' ? '☀' : '☾'}
+              </span>
+              <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -77,24 +108,31 @@ function App() {
           </div>
         )}
         {phase === 'results' && (
-          <ScheduleResults
-            schedules={schedules}
-            query={query}
-            onReset={handleReset}
-          />
+          <>
+            {errorMsg && (
+              <div className="banner-warning" role="status">
+                {errorMsg}
+              </div>
+            )}
+            <ScheduleResults
+              schedules={schedules}
+              query={query}
+              onReset={handleReset}
+            />
+          </>
         )}
       </main>
 
       <footer className="app-footer">
         <p>HuskyPath &middot; DYOP Final Project &middot; University of Washington</p>
       </footer>
+
+      <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
     </div>
   )
 }
 
 // ─── MOCK DATA (used when server returns 501) ─────────────────────────────────
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
-
 const MOCK_SCHEDULES = [
   {
     id: 1,

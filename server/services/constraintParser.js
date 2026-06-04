@@ -138,12 +138,19 @@ function validateConstraints(payload) {
 
   if (payload.avoid_consecutive) result.avoid_consecutive = true;
 
+  if (typeof payload.target_courses === 'number') {
+    result.target_courses = payload.target_courses;
+  }
+
   return result;
 }
 
 function buildPrompt(userText) {
   return `Extract a JSON constraint object from the user's preferences. Return ONLY valid JSON, no explanations, no markdown, no prose. Omit any fields that are not mentioned or are empty. Begin immediately with { and end with }.
 
+CRITICAL RULE: Always default to including "target_courses": 3 in the output JSON unless the user explicitly requests a different number of classes.
+
+Schema (all fields optional):
 {
   "no_before": "HH:MM",
   "no_after": "HH:MM",
@@ -152,12 +159,41 @@ function buildPrompt(userText) {
   "required_courses": ["CSE 142", "MATH 125"],
   "light_days": ["Wednesday"],
   "preferred_times": ["morning", "afternoon", "evening"],
-  "avoid_consecutive": true
+  "avoid_consecutive": true,
+  "target_courses": 3
 }
 
-Examples:
-"no classes before 10am, avoid Mondays, no back to back classes" => {"no_before":"10:00","excluded_days":["Monday"],"avoid_consecutive":true}
-"no classes after 5pm, avoid Friday, light Friday" => {"no_after":"17:00","excluded_days":["Friday"],"light_days":["Friday"]}
+Example 1:
+Input: "no classes before 10am, avoid Mondays, no back to back classes"
+Output:
+{
+  "no_before": "10:00",
+  "excluded_days": ["Monday"],
+  "avoid_consecutive": true,
+  "target_courses": 3
+}
+
+Example 2:
+Input: "no classes after 5pm, avoid Friday, light Friday, I want to take 4 classes"
+Output:
+{
+  "no_after": "17:00",
+  "excluded_days": ["Friday"],
+  "light_days": ["Friday"],
+  "target_courses": 4"
+}
+
+Example 3:
+Input: "not before 9am, not after 3pm, no Wednesdays, no back-to-back lectures, prefer afternoons, need CSE 142"
+Output:
+{
+  "no_before": "09:00",
+  "no_after": "15:00",
+  "excluded_days": ["Wednesday"],
+  "avoid_consecutive": true,
+  "preferred_times": ["afternoon"],
+  "required_courses": ["CSE 142"]
+}
 
 User input: "${userText.trim()}"
 JSON:`;

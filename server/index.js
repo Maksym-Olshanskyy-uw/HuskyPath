@@ -16,11 +16,22 @@ const cors = require('cors');
 const coursesRouter   = require('./routes/courses');
 const parseRouter     = require('./routes/parse');     // owner: Max
 const schedulesRouter = require('./routes/schedules'); // owner: Kieran
+const planRouter      = require('./routes/plan');      // owner: Kieran — integration glue
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
 
-app.use(cors());
+// CORS: in production, lock down to comma-separated CORS_ORIGIN(s)
+// (e.g. "https://huskypath.vercel.app"). In development allow all.
+const corsOrigins = (process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin: corsOrigins.length ? corsOrigins : true,
+  methods: ['GET', 'POST'],
+}));
 app.use(express.json({ limit: '1mb' }));
 
 app.get('/api/health', (_req, res) => {
@@ -30,6 +41,7 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/courses',            coursesRouter);
 app.use('/api/parse-constraints',  parseRouter);
 app.use('/api/schedules',          schedulesRouter);
+app.use('/api/plan',               planRouter);
 
 // 404 fallback for unknown API routes
 app.use('/api', (req, res) => {
@@ -37,9 +49,9 @@ app.use('/api', (req, res) => {
 });
 
 if (require.main === module) {
-  app.listen(PORT, () => {
+  app.listen(PORT, '0.0.0.0', () => {
     // eslint-disable-next-line no-console
-    console.log(`[huskypath-api] listening on http://localhost:${PORT}`);
+    console.log(`[huskypath-api] listening on port ${PORT}`);
   });
 }
 
