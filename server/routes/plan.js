@@ -54,6 +54,7 @@ const express = require('express');
 const { parseConstraints } = require('../services/constraintParser');
 const { generateCandidates } = require('../services/scheduler');
 const { scoreSchedule } = require('../services/scorer');
+const { explainSchedules } = require('../services/explainer');
 
 const router = express.Router();
 const SAMPLE_PATH = path.join(__dirname, '..', 'data', 'sample-courses.json');
@@ -119,6 +120,11 @@ router.post('/', async (req, res) => {
     .map((c) => ({ ...c, ...scoreSchedule(c, constraints) }))
     .sort((a, b) => b.score - a.score)
     .slice(0, topN);
+
+  // Step 4 (optional) — upgrade templated explanations to LLM-written prose
+  // when GEMINI_API_KEY is configured. Silent no-op otherwise so dev/test
+  // environments don't require an API key.
+  await explainSchedules(schedules, constraints);
 
   res.json({
     constraints,

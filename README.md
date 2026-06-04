@@ -23,12 +23,12 @@ User input ──► Gemini API (NLP parser) ──► Structured constraints
                                             Top-3 schedules ──► React calendar UI
 ```
 
-| Layer    | Stack                                                                 |
-| -------- | --------------------------------------------------------------------- |
-| Frontend | React 19, Vite, TailwindCSS (planned), deployed on Vercel             |
-| Backend  | Node.js + Express 5, PostgreSQL (planned)                             |
-| AI       | Google Gemini API (NLP parser) for the natural-language constraint parser       |
-| Data     | UW Time Schedule (scraped HTML), Rate My Professor, public grade data |
+| Layer    | Stack                                                                       |
+| -------- | --------------------------------------------------------------------------- |
+| Frontend | React 19 + Vite, deployed on Vercel                                         |
+| Backend  | Node.js 18+ with Express 5, deployable on Render                            |
+| AI       | Google Gemini API — NLP constraint parser + LLM-generated explanations      |
+| Data     | UW Time Schedule (scraped HTML), Rate My Professor + grade data (planned)   |
 
 ## Repo layout
 
@@ -46,10 +46,12 @@ server/
     constraintParser.js          NLP → structured constraints
     scheduler.js                 conflict-free candidate generation
     scorer.js                    4-dim weighted scoring + explanations
+    explainer.js                 LLM-generated schedule explanations
   scripts/scrape.js              CLI: scrape a department to JSON
   data/                          Cached / sample course data
   test/                          Node built-in test runner specs
   .env.example                   Environment template
+render.yaml                      Render deployment config (backend)
 ```
 
 ## Quickstart
@@ -64,10 +66,30 @@ npm run dev          # starts API on http://localhost:3001
 # Frontend (separate terminal)
 cd client
 npm install
+cp .env.example .env
 npm run dev          # Vite on http://localhost:5173
 ```
 
 Health check: `curl http://localhost:3001/api/health`
+
+## Deployment
+
+The frontend is on Vercel (`husky-path.vercel.app`); the backend deploys
+to Render's free tier using the included `render.yaml`.
+
+**Backend (Render):**
+1. New → Web Service → connect this repo
+2. Render auto-detects `render.yaml`
+3. In Settings → Environment, add `GEMINI_API_KEY` (don't commit it)
+4. Wait for the first deploy; note the URL (e.g. `https://huskypath-api.onrender.com`)
+
+**Frontend (Vercel):**
+1. In Vercel project settings → Environment Variables, set
+   `VITE_API_BASE` to the Render URL from above
+2. Redeploy
+
+The frontend gracefully falls back to mock data if the backend is
+unreachable, so the demo never dies on a cold-started Render instance.
 
 ## UW Time Schedule scraper
 
@@ -160,5 +182,7 @@ No third-party test framework — Node 18+ built-in runner only.
 - [x] **Multi-dimensional scoring model + ranker**
 - [x] **One-shot `/api/plan` integration endpoint**
 - [x] React calendar UI wired to live `/api/plan`
-- [x] Live UW scraper verified against real Time Schedule pages
+- [x] **LLM-generated schedule explanations (Gemini)**
 - [x] iCal / PDF export
+- [ ] Live UW scraper verified against real Time Schedule pages
+- [ ] RateMyProfessor + UW grade-distribution integration for difficulty scoring
