@@ -20,8 +20,8 @@ services:
         value: production
       - key: CORS_ORIGIN
         # Comma-separated list of allowed origins. Set this to your
-        # Vercel URL once it's known (e.g. https://huskypath.vercel.app).
-        value: https://huskypath.vercel.app
+        # Vercel URL once it's known (e.g. https://husky-path.vercel.app).
+        value: https://husky-path.vercel.app
       - key: GEMINI_API_KEY
         # Set this in Render's dashboard, not committed.
         sync: false
