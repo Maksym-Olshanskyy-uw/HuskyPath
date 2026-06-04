@@ -138,11 +138,17 @@ function validateConstraints(payload) {
 
   if (payload.avoid_consecutive) result.avoid_consecutive = true;
 
+  if (typeof payload.target_courses === 'number') {
+    result.target_courses = payload.target_courses;
+  }
+
   return result;
 }
 
 function buildPrompt(userText) {
   return `Extract a JSON constraint object from the user's preferences. Return ONLY valid JSON, no explanations, no markdown, no prose. Omit any fields that are not mentioned or are empty.
+
+CRITICAL RULE: Always default to including "target_courses": 3 in the output JSON unless the user explicitly requests a different number of classes.
 
 Schema (all fields optional):
 {
@@ -153,7 +159,8 @@ Schema (all fields optional):
   "required_courses": ["CSE 142", "MATH 125"],
   "light_days": ["Wednesday"],
   "preferred_times": ["morning", "afternoon", "evening"],
-  "avoid_consecutive": true
+  "avoid_consecutive": true,
+  "target_courses": 3
 }
 
 Example 1:
@@ -162,16 +169,18 @@ Output:
 {
   "no_before": "10:00",
   "excluded_days": ["Monday"],
-  "avoid_consecutive": true
+  "avoid_consecutive": true,
+  "target_courses": 3
 }
 
 Example 2:
-Input: "no classes after 5pm, avoid Friday, light Friday"
+Input: "no classes after 5pm, avoid Friday, light Friday, I want to take 4 classes"
 Output:
 {
   "no_after": "17:00",
   "excluded_days": ["Friday"],
-  "light_days": ["Friday"]
+  "light_days": ["Friday"],
+  "target_courses": 4"
 }
 
 Example 3:

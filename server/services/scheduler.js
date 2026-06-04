@@ -135,38 +135,63 @@ function generateCandidates(courses, constraints = {}, opts = {}) {
     if (!c || c.sections.length === 0) return [];
   }
 
-  // Sort courses with fewest sections first → smaller branching factor up top.
-  pool.sort((a, b) => a.sections.length - b.sections.length);
+  // Sort courses: Required first, then by fewest sections to reduce branching.
+  pool.sort((a, b) => {
+    const aReq = required.has(a.code);
+    const bReq = required.has(b.code);
+    if (aReq && !bReq) return -1;
+    if (!aReq && bReq) return 1;
+    return a.sections.length - b.sections.length;
+  });
 
+  // NEW: Read the target constraint, default to pool.length if missing
+  const targetCourses = constraints.target_courses || pool.length;
   const candidates = [];
 
   function backtrack(idx, chosen) {
     if (candidates.length >= maxCandidates) return;
-    if (idx === pool.length) {
+    
+    // NEW BASE CASE 1: We hit our target number of courses!
+    if (chosen.length === targetCourses) {
       candidates.push({ sections: chosen.slice() });
       return;
     }
-    const course = pool[idx];
-    // If this course has no eligible sections AND it's not required,
-    // we skip it (treat as optional). Otherwise we'd produce zero
-    // candidates whenever any single course had no fit.
-    if (course.sections.length === 0) {
-      if (required.has(course.code)) return;
-      backtrack(idx + 1, chosen);
+
+    // BASE CASE 2: We ran out of courses in the pool before hitting the target
+    if (idx === pool.length) {
+      // If no target was explicitly specified, we accept whatever we managed to pick
+      if (!constraints.target_courses) {
+         candidates.push({ sections: chosen.slice() });
+      }
       return;
     }
-    for (const section of course.sections) {
-      const sectionWithCourse = {
-        ...section,
-        courseCode: course.code,
-        courseTitle: course.title,
-      };
-      const conflicts = chosen.some((c) => sectionsConflict(c, sectionWithCourse));
-      if (conflicts) continue;
-      chosen.push(sectionWithCourse);
+
+    const course = pool[idx];
+    const isRequired = required.has(course.code);
+
+    // NEW BRANCH 1: Skip this course entirely (only allowed if NOT required)
+    // This allows us to pick 3 courses out of a pool of 6.
+    if (!isRequired) {
       backtrack(idx + 1, chosen);
-      chosen.pop();
-      if (candidates.length >= maxCandidates) return;
+    }
+
+    // BRANCH 2: Pick a valid section from this course
+    if (course.sections.length > 0) {
+      for (const section of course.sections) {
+        const sectionWithCourse = {
+          ...section,
+          courseCode: course.code,
+          courseTitle: course.title,
+        };
+        const conflicts = chosen.some((c) => sectionsConflict(c, sectionWithCourse));
+        if (conflicts) continue;
+        
+        chosen.push(sectionWithCourse);
+        backtrack(idx + 1, chosen);
+        chosen.pop();
+        
+        if (candidates.length >= maxCandidates) return;
+      }
     }
   }
 
