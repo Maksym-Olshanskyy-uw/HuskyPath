@@ -1,7 +1,7 @@
 'use strict';
 
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
-const MODEL_NAME = 'gemini-2.5-flash-lite';
+const MODEL_NAME = 'gemma-4-31b-it';
 const ALLOWED_PREF_TIMES = new Set(['morning', 'afternoon', 'evening']);
 const DAY_MAP = {
   m: 'Monday',
@@ -142,9 +142,8 @@ function validateConstraints(payload) {
 }
 
 function buildPrompt(userText) {
-  return `Extract a JSON constraint object from the user's preferences. Return ONLY valid JSON, no explanations, no markdown, no prose. Omit any fields that are not mentioned or are empty.
+  return `Extract a JSON constraint object from the user's preferences. Return ONLY valid JSON, no explanations, no markdown, no prose. Omit any fields that are not mentioned or are empty. Begin immediately with { and end with }.
 
-Schema (all fields optional):
 {
   "no_before": "HH:MM",
   "no_after": "HH:MM",
@@ -156,38 +155,12 @@ Schema (all fields optional):
   "avoid_consecutive": true
 }
 
-Example 1:
-Input: "no classes before 10am, avoid Mondays, no back to back classes"
-Output:
-{
-  "no_before": "10:00",
-  "excluded_days": ["Monday"],
-  "avoid_consecutive": true
-}
+Examples:
+"no classes before 10am, avoid Mondays, no back to back classes" => {"no_before":"10:00","excluded_days":["Monday"],"avoid_consecutive":true}
+"no classes after 5pm, avoid Friday, light Friday" => {"no_after":"17:00","excluded_days":["Friday"],"light_days":["Friday"]}
 
-Example 2:
-Input: "no classes after 5pm, avoid Friday, light Friday"
-Output:
-{
-  "no_after": "17:00",
-  "excluded_days": ["Friday"],
-  "light_days": ["Friday"]
-}
-
-Example 3:
-Input: "not before 9am, not after 3pm, no Wednesdays, no back-to-back lectures, prefer afternoons, need CSE 142"
-Output:
-{
-  "no_before": "09:00",
-  "no_after": "15:00",
-  "excluded_days": ["Wednesday"],
-  "avoid_consecutive": true,
-  "preferred_times": ["afternoon"],
-  "required_courses": ["CSE 142"]
-}
-
-Input: "${userText.trim()}"
-Output:`;
+User input: "${userText.trim()}"
+JSON:`;
 }
 
 async function callGemini(prompt) {
@@ -214,14 +187,14 @@ async function callGemini(prompt) {
       ],
       generationConfig: {
         temperature: 0.0,
-        maxOutputTokens: 512,
+        maxOutputTokens: 1024,
       },
     }),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`Gemini API request failed (${response.status}): ${errorText}`);
+    throw new Error(`Generative Language API request failed (${response.status}): ${errorText}`);
   }
 
   const result = await response.json();
@@ -231,7 +204,11 @@ async function callGemini(prompt) {
     if (typeof candidate.output === 'string') {
       text = candidate.output;
     } else if (candidate.content && Array.isArray(candidate.content.parts)) {
-      text = candidate.content.parts.map((part) => part.text || '').join('');
+      // Filter out thinking/reasoning parts and only use actual text
+      text = candidate.content.parts
+        .filter((part) => !part.thought)
+        .map((part) => part.text || '')
+        .join('');
     } else if (typeof candidate.outputText === 'string') {
       text = candidate.outputText;
     } else {
@@ -242,10 +219,10 @@ async function callGemini(prompt) {
 
   if (!text) {
     // Log full result for debugging before throwing so developers can inspect
-    // the exact Gemini response in server logs (do not expose API keys).
+    // the exact model response in server logs (do not expose API keys).
     // eslint-disable-next-line no-console
-    console.error('[constraintParser] Gemini raw result:', JSON.stringify(result));
-    throw new Error(`Gemini returned no output text: ${JSON.stringify(result).slice(0,200)}`);
+    console.error('[constraintParser] Model raw result:', JSON.stringify(result));
+    throw new Error(`Model returned no output text: ${JSON.stringify(result).slice(0,200)}`);
   }
 
   return text;
@@ -270,7 +247,7 @@ async function parseConstraints({ text }) {
     const parsed = JSON.parse(jsonText);
     return validateConstraints(parsed);
   } catch (err) {
-    throw new Error(`Failed to parse Gemini JSON response: ${err.message}. Raw: ${String(raw).slice(0,200)}`);
+    throw new Error(`Failed to parse model JSON response: ${err.message}. Raw: ${String(raw).slice(0,200)}`);
   }
 }
 
